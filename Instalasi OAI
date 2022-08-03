@@ -1,0 +1,75 @@
+#Install Docker Engine
+sudo apt-get update
+sudo apt-get install \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release
+
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+echo \
+"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+$(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt-get update
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+apt-cache madison docker-ce
+sudo apt-get install docker-ce=5:19.03.0~3-0~ubuntu-bionic docker-ce-cli=5:19.03.0~3-0~ubuntu-bionic containerd.io docker-compose-plugin
+sudo docker run hello-world
+
+
+#Install Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+
+#Clone OAI 5G
+git clone https://gitlab.eurecom.fr/oai/openairinterface5g.git
+cd openairinterface5g
+git checkout develop
+git branch
+
+#Install OAI 5G
+cd openairinterface5g
+cd cmake_targets/
+./build_oai -I -w SIMU --nrUE --gNB --build-lib all
+cd ../..
+
+#Pull Docker
+sudo docker login
+sudo docker pull mysql:5.7
+sudo docker pull oaisoftwarealliance/oai-amf:latest
+sudo docker pull oaisoftwarealliance/oai-nrf:latest
+sudo docker pull oaisoftwarealliance/oai-smf:latest
+sudo docker pull oaisoftwarealliance/oai-spgwu-tiny:latest
+sudo docker pull oaisoftwarealliance/oai-gnb:develop
+sudo docker pull oaisoftwarealliance/oai-nr-ue:develop
+
+
+#Retag Docker
+sudo docker image tag oaisoftwarealliance/oai-amf:latest oai-amf:latest
+sudo docker image tag oaisoftwarealliance/oai-nrf:latest oai-nrf:latest
+sudo docker image tag oaisoftwarealliance/oai-smf:latest oai-smf:latest
+sudo docker image tag oaisoftwarealliance/oai-spgwu-tiny:latest oai-spgwu-tiny:latest
+sudo docker image tag oaisoftwarealliance/oai-gnb:develop oai-gnb:develop
+sudo docker image tag oaisoftwarealliance/oai-nr-ue:develop oai-nr-ue:develop
+sudo docker logout
+
+#Deploy Core Network OAI 5G
+cd openairinterface
+cd ci-scripts/yaml_files/5g_rfsimulator
+sudo docker-compose up -d mysql oai-nrf oai-amf oai-smf oai-spgwu oai-ext-dn
+sudo docker-compose ps -a
+
+#Deploy Access Network OAI 5G
+sudo docker-compose up -d oai-gnb
+sudo docker-compose ps -a
+sudo docker logs rfsim5g-oai-amf            #Pastikan gNB tersambung AMF
+sudo docker-compose up -d oai-nr-ue
+sudo docker-compose ps -a                   #Cek semua komponen sudah berjalan atau belum Up(Healthy)
+
+#Cek OAI UE
+sudo docker exec -it rfsim5g-oai-nr-ue /bin/bash
