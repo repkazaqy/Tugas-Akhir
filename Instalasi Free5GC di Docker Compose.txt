@@ -49,3 +49,6 @@ sudo docker-compose build
 
 --Jalankan Free5GC Compose--
 sudo docker-compose up # add -d to run in background mode
+
+--Jalankan UE--
+sudo docker exec -it ueransim bash
